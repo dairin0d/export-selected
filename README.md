@@ -2,7 +2,13 @@ Export Selected
 ===============
 
 A Blender Addon that adds an option to export only selected objects for every
-registered exporter.
+registered exporter. The addon also gives you an option to export the objects
+to a separate .blend file.
+
+By default children of the selected objects are exported too (the "Include
+Children" option).
+
+For PLY format, all the selected objects would be exported as a single mesh.
 
 Installing
 ----------

@@ -25,8 +25,10 @@ bl_info = {
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
     "warning": "",
-    "wiki_url": "",
-    "tracker_url": "",
+    "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.6/Py/"\
+                "Scripts/Import-Export/Export_Selected",
+    "tracker_url": "http://projects.blender.org/tracker/"\
+                   "?func=detail&aid=30942",
     "category": "Import-Export"}
 #============================================================================#
 

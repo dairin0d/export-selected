@@ -40,5 +40,6 @@ http://projects.blender.org/tracker/?func=detail&aid=30942
 Thanks
 ------
 
+- moth3r / Ivan - For the original idea of exporting to Blend file.
 - rking / Ryan Joseph King - For the original idea and help with the
   repository setup.

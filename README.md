@@ -34,7 +34,8 @@ the available formats would be listed.
 Contact information
 -------------------
 
-(add a link to Blender tracker)
+Upload Tracker:
+http://projects.blender.org/tracker/?func=detail&aid=30942
 
 Thanks
 ------

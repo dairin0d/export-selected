@@ -20,7 +20,7 @@
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking",
-    "version": (1, 0),
+    "version": (1, 1),
     "blender": (2, 6, 0),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
@@ -185,7 +185,6 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
     @classmethod
     def poll(cls, context):
         return len(context.scene.objects) != 0
-        #return len(context.selected_objects) != 0
     
     def invoke(self, context, event):
         CurrentFormatProperties._clear_props()

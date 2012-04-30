@@ -35,7 +35,6 @@ bl_info = {
 import bpy
 
 from bpy_extras.io_utils import ExportHelper
-from bpy.props import StringProperty, BoolProperty, EnumProperty
 
 bpy_props = {
     bpy.props.BoolProperty,
@@ -118,20 +117,52 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
     bl_idname = "export_scene.selected"
     bl_label = "Export Selected"
     
-    filename_ext = StringProperty(
+    filename_ext = bpy.props.StringProperty(
         default="",
         options={'HIDDEN'},
         )
     
-    filter_glob = StringProperty(
+    filter_glob = bpy.props.StringProperty(
         default="*.*",
         options={'HIDDEN'},
         )
     
-    include_children = BoolProperty(
+    selection_mode = bpy.props.EnumProperty(
+        name="Selection Mode",
+        description="Limit/expand the selection",
+        default='SELECTED',
+        items=[
+            ('SELECTED', "Selected", ""),
+            ('VISIBLE', "Visible", ""),
+            ('ALL', "All", ""),
+        ],
+        )
+    
+    include_children = bpy.props.BoolProperty(
         name="Include Children",
         description="Keep children even if they're not selected",
         default=True,
+        )
+    
+    object_types = bpy.props.EnumProperty(
+        name="Object types",
+        description="Object type(s) to export",
+        default={'ALL'},
+        items=[
+            ('ALL', "All", ""),
+            ('MESH', "Mesh", ""),
+            ('CURVE', "Curve", ""),
+            ('SURFACE', "Surface", ""),
+            ('META', "Meta", ""),
+            ('FONT', "Font", ""),
+            ('ARMATURE', "Armature", ""),
+            ('LATTICE', "Lattice", ""),
+            ('EMPTY', "Empty", ""),
+            ('CAMERA', "Camera", ""),
+            ('LAMP', "Lamp", ""),
+            ('SPEAKER', "Speaker", ""),
+        ],
+        options={'ENUM_FLAG'},
         )
     
     visible_name = bpy.props.StringProperty(
@@ -153,7 +184,8 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
     
     @classmethod
     def poll(cls, context):
-        return len(context.selected_objects) != 0
+        return len(context.scene.objects) != 0
+        #return len(context.selected_objects) != 0
     
     def invoke(self, context, event):
         CurrentFormatProperties._clear_props()
@@ -167,7 +199,7 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
             if self.format == "wm.collada_export":
                 # Special case: Collada (built-in) -- has no
                 # explicitly defined Python properties
-                CurrentFormatProperties.second_life = BoolProperty(
+                CurrentFormatProperties.second_life = bpy.props.BoolProperty(
                     name="Export for Second Life",
                     description="Compatibility mode for Second Life",
                     default=False,
@@ -181,33 +213,40 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         return ExportHelper.invoke(self, context, event)
     
     def clear_world(self, context):
-        message = "Killing everything but the Chosen Ones"
-        if self.include_children:
-            message += " and their children"
-        bpy.ops.ed.undo_push(message=message)
+        bpy.ops.ed.undo_push(message="Delete unselected")
         
         for scene in bpy.data.scenes:
             if scene != context.scene:
                 bpy.data.scenes.remove(scene)
         
+        scene = context.scene
+        
         objs = set()
         
         def add_obj(obj):
-            objs.add(obj)
+            if self.object_types.intersection({'ALL', obj.type}):
+                objs.add(obj)
+            
             if self.include_children:
                 for child in obj.children:
                     add_obj(child)
         
-        for obj in context.scene.objects:
-            if obj.select:
+        for obj in scene.objects:
+            if (self.selection_mode == 'SELECTED') and obj.select:
+                add_obj(obj)
+            elif (self.selection_mode == 'VISIBLE') and obj.is_visible(scene):
+                obj.hide_select = False
+                add_obj(obj)
+            elif (self.selection_mode == 'ALL'):
+                obj.hide_select = False
                 add_obj(obj)
         
-        for obj in context.scene.objects:
-            if obj not in objs:
-                context.scene.objects.unlink(obj)
-        context.scene.update()
-        
-        bpy.ops.object.select_all(action='SELECT')
+        for obj in scene.objects:
+            if obj in objs:
+                obj.select = True
+            else:
+                scene.objects.unlink(obj)
+        scene.update()
         
         if self.format in join_before_export:
             bpy.ops.object.convert()
@@ -232,6 +271,7 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
             )
         
         bpy.ops.ed.undo()
+        bpy.ops.ed.undo_push(message="Export Selected")
         
         return {'FINISHED'}
     
@@ -240,7 +280,9 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         
         layout.label("Export " + self.visible_name)
         
+        layout.prop(self, "selection_mode", text="")
         layout.prop(self, "include_children")
+        layout.prop_menu_enum(self, "object_types")
         
         if not self.format:
             return

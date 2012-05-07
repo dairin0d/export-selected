@@ -144,6 +144,12 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         default=True,
         )
     
+    remove_orphans = bpy.props.BoolProperty(
+        name="Remove Orphans",
+        description="Remove datablocks that have no users",
+        default=True,
+        )
+    
     object_types = bpy.props.EnumProperty(
         name="Object types",
         description="Object type(s) to export",
@@ -245,7 +251,52 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
                 obj.select = True
             else:
                 scene.objects.unlink(obj)
+                bpy.data.objects.remove(obj)
         scene.update()
+        
+        if self.remove_orphans:
+            datablocks_cleanup_order = [
+                #"window_managers",
+                #"screens",
+                "scenes",
+                "worlds",
+                
+                "grease_pencil",
+                "fonts",
+                "scripts",
+                "texts",
+                "movieclips",
+                "actions",
+                "speakers",
+                "sounds",
+                "brushes",
+                
+                "node_groups",
+                "groups",
+                "objects",
+                
+                "armatures",
+                "cameras",
+                "lamps",
+                "lattices",
+                "shape_keys",
+                "meshes",
+                "metaballs",
+                "particles",
+                "curves",
+                
+                "materials",
+                "textures",
+                "images",
+                
+                "libraries",
+            ]
+            for datablocks_name in datablocks_cleanup_order:
+                datablocks = getattr(bpy.data, datablocks_name)
+                if type(datablocks).__name__ == "bpy_prop_collection":
+                    for datablock in datablocks:
+                        if datablock.users == 0:
+                            datablocks.remove(datablock)
         
         if self.format in join_before_export:
             bpy.ops.object.convert()
@@ -281,6 +332,7 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         
         layout.prop(self, "selection_mode", text="")
         layout.prop(self, "include_children")
+        layout.prop(self, "remove_orphans")
         layout.prop_menu_enum(self, "object_types")
         
         if not self.format:

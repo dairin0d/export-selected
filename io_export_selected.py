@@ -20,7 +20,7 @@
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking",
-    "version": (1, 1),
+    "version": (1, 2),
     "blender": (2, 6, 0),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",

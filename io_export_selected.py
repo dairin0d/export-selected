@@ -150,6 +150,24 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         default=True,
         )
     
+    keep_materials = bpy.props.BoolProperty(
+        name="Keep Materials",
+        description="Keep Materials",
+        default=True,
+        )
+    
+    keep_textures = bpy.props.BoolProperty(
+        name="Keep Textures",
+        description="Keep Textures",
+        default=True,
+        )
+    
+    keep_world_textures = bpy.props.BoolProperty(
+        name="Keep World Textures",
+        description="Keep World Textures",
+        default=False,
+        )
+    
     object_types = bpy.props.EnumProperty(
         name="Object types",
         description="Object type(s) to export",
@@ -254,49 +272,90 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
                 bpy.data.objects.remove(obj)
         scene.update()
         
-        if self.remove_orphans:
-            datablocks_cleanup_order = [
-                #"window_managers",
-                #"screens",
-                "scenes",
-                "worlds",
-                
-                "grease_pencil",
-                "fonts",
-                "scripts",
-                "texts",
-                "movieclips",
-                "actions",
-                "speakers",
-                "sounds",
-                "brushes",
-                
-                "node_groups",
-                "groups",
-                "objects",
-                
-                "armatures",
-                "cameras",
-                "lamps",
-                "lattices",
-                "shape_keys",
-                "meshes",
-                "metaballs",
-                "particles",
-                "curves",
-                
-                "materials",
-                "textures",
-                "images",
-                
-                "libraries",
-            ]
-            for datablocks_name in datablocks_cleanup_order:
-                datablocks = getattr(bpy.data, datablocks_name)
-                if type(datablocks).__name__ == "bpy_prop_collection":
-                    for datablock in datablocks:
-                        if datablock.users == 0:
-                            datablocks.remove(datablock)
+        if not self.format:
+            if not self.keep_materials:
+                for material in bpy.data.materials:
+                    material.user_clear()
+                    bpy.data.materials.remove(material)
+            
+            if not self.keep_textures:
+                """
+                TODO:
+                BlendData.textures
+                BlendDataTextures.new
+                BlendDataTextures.remove
+                Brush.texture
+                CompositorNodeTexture.texture
+                DisplaceModifier.texture
+                DynamicPaintSurface.init_texture
+                FieldSettings.texture
+                Lamp.active_texture
+                Material.active_texture
+                ParticleSettings.active_texture
+                ShaderNodeTexture.texture
+                TextureNodeTexture.texture
+                TextureSlot.texture
+                VertexWeightEditModifier.mask_texture
+                VertexWeightMixModifier.mask_texture
+                VertexWeightProximityModifier.mask_texture
+                WarpModifier.texture
+                WaveModifier.texture
+                World.active_texture
+                """
+                for material in bpy.data.materials:
+                    for i in range(len(material.texture_slots)):
+                        material.texture_slots.clear(i)
+                for texture in bpy.data.textures:
+                    texture.user_clear()
+                    bpy.data.textures.remove(texture)
+            elif not self.keep_world_textures:
+                for world in bpy.data.worlds:
+                    for i in range(len(world.texture_slots)):
+                        world.texture_slots.clear(i)
+            
+            if self.remove_orphans:
+                datablocks_cleanup_order = [
+                    #"window_managers",
+                    #"screens",
+                    "scenes",
+                    "worlds",
+                    
+                    "grease_pencil",
+                    "fonts",
+                    "scripts",
+                    "texts",
+                    "movieclips",
+                    "actions",
+                    "speakers",
+                    "sounds",
+                    "brushes",
+                    
+                    "node_groups",
+                    "groups",
+                    "objects",
+                    
+                    "armatures",
+                    "cameras",
+                    "lamps",
+                    "lattices",
+                    "shape_keys",
+                    "meshes",
+                    "metaballs",
+                    "particles",
+                    "curves",
+                    
+                    "materials",
+                    "textures",
+                    "images",
+                    
+                    "libraries",
+                ]
+                for datablocks_name in datablocks_cleanup_order:
+                    datablocks = getattr(bpy.data, datablocks_name)
+                    if type(datablocks).__name__ == "bpy_prop_collection":
+                        for datablock in datablocks:
+                            if datablock.users == 0:
+                                datablocks.remove(datablock)
         
         if self.format in join_before_export:
             bpy.ops.object.convert()
@@ -332,13 +391,18 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         
         layout.prop(self, "selection_mode", text="")
         layout.prop(self, "include_children")
-        layout.prop(self, "remove_orphans")
         layout.prop_menu_enum(self, "object_types")
         
-        if not self.format:
-            return
-        
         layout.box()
+        
+        if not self.format:
+            layout.prop(self, "remove_orphans")
+            layout.prop(self, "keep_materials")
+            layout.prop(self, "keep_textures")
+            sublayout = layout.row()
+            sublayout.enabled = self.keep_textures
+            sublayout.prop(self, "keep_world_textures")
+            return
         
         op = get_op(self.format)
         op_class = type(op.get_instance())

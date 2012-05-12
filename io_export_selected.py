@@ -36,6 +36,10 @@ import bpy
 
 from bpy_extras.io_utils import ExportHelper
 
+join_before_export = {
+    "export_mesh.ply",
+}
+
 bpy_props = {
     bpy.props.BoolProperty,
     bpy.props.BoolVectorProperty,
@@ -49,10 +53,6 @@ bpy_props = {
     bpy.props.CollectionProperty,
 }
 
-join_before_export = {
-    "export_mesh.ply",
-}
-
 def is_bpy_prop(value):
     if isinstance(value, tuple) and (len(value) == 2):
         if (value[0] in bpy_props) and isinstance(value[1], dict):
@@ -60,7 +60,6 @@ def is_bpy_prop(value):
     return False
 
 def iter_public_bpy_props(cls, exclude_hidden=False):
-    #for key, value in cls.__dict__.items():
     for key in dir(cls):
         if key.startswith("_"):
             continue
@@ -279,32 +278,14 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
                     bpy.data.materials.remove(material)
             
             if not self.keep_textures:
-                """
-                TODO:
-                BlendData.textures
-                BlendDataTextures.new
-                BlendDataTextures.remove
-                Brush.texture
-                CompositorNodeTexture.texture
-                DisplaceModifier.texture
-                DynamicPaintSurface.init_texture
-                FieldSettings.texture
-                Lamp.active_texture
-                Material.active_texture
-                ParticleSettings.active_texture
-                ShaderNodeTexture.texture
-                TextureNodeTexture.texture
-                TextureSlot.texture
-                VertexWeightEditModifier.mask_texture
-                VertexWeightMixModifier.mask_texture
-                VertexWeightProximityModifier.mask_texture
-                WarpModifier.texture
-                WaveModifier.texture
-                World.active_texture
-                """
+                for world in bpy.data.worlds:
+                    for i in range(len(world.texture_slots)):
+                        world.texture_slots.clear(i)
                 for material in bpy.data.materials:
                     for i in range(len(material.texture_slots)):
                         material.texture_slots.clear(i)
+                for brush in bpy.data.brushes:
+                    brush.texture = None
                 for texture in bpy.data.textures:
                     texture.user_clear()
                     bpy.data.textures.remove(texture)

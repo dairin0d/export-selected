@@ -15,13 +15,13 @@
 #
 #  ***** END GPL LICENSE BLOCK *****
 
-# <pep8-80 compliant>
+# <pep8 compliant>
 
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking",
-    "version": (1, 2),
-    "blender": (2, 6, 0),
+    "version": (1, 3),
+    "blender": (2, 6, 9),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
     "warning": "",
@@ -219,13 +219,25 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
             CurrentFormatProperties._add_props(op_class)
             
             if self.format == "wm.collada_export":
-                # Special case: Collada (built-in) -- has no
-                # explicitly defined Python properties
-                CurrentFormatProperties.second_life = bpy.props.BoolProperty(
-                    name="Export for Second Life",
-                    description="Compatibility mode for Second Life",
-                    default=False,
-                    )
+                # Special case: Collada (built-in) -- has no explicitly defined Python properties
+                CurrentFormatProperties.apply_modifiers = bpy.props.BoolProperty(name="Apply Modifiers", description="Apply modifiers to exported mesh (non destructive)", default=False)
+                #export_mesh_type=0 # couldn't find correspondence in the UI
+                CurrentFormatProperties.export_mesh_type_selection = bpy.props.EnumProperty(name="Type of modifiers", description="Modifier resolution for export", default='view', items=[('render', "Render", "Apply modifier's render settings"), ('view', "View", "Apply modifier's view settings")])
+                CurrentFormatProperties.selected = bpy.props.BoolProperty(name="Selection Only", description="Export only selected elements", default=False)
+                CurrentFormatProperties.include_children = bpy.props.BoolProperty(name="Include Children", description="Export all children of selected objects (even if not selected)", default=False)
+                CurrentFormatProperties.include_armatures = bpy.props.BoolProperty(name="Include Armatures", description="Export related armatures (even if not selected)", default=False)
+                CurrentFormatProperties.include_shapekeys = bpy.props.BoolProperty(name="Include Shape Keys", description="Export all Shape Keys from Mesh Objects", default=True)
+                CurrentFormatProperties.deform_bones_only = bpy.props.BoolProperty(name="Deform Bones only", description="Only export deforming bones with armatures", default=False)
+                CurrentFormatProperties.active_uv_only = bpy.props.BoolProperty(name="Only Active UV layer", description="Export textures assigned to the object UV maps", default=False)
+                CurrentFormatProperties.include_uv_textures = bpy.props.BoolProperty(name="Include UV Textures", description="Export textures assigned to the object UV maps", default=False)
+                CurrentFormatProperties.include_material_textures = bpy.props.BoolProperty(name="Include Material Textures", description="Export textures assigned to the object Materials", default=False)
+                CurrentFormatProperties.use_texture_copies = bpy.props.BoolProperty(name="Copy Textures", description="Copy textures to the same folder where .dae file is exported", default=True)
+                CurrentFormatProperties.triangulate = bpy.props.BoolProperty(name="Triangulate", description="Export Polygons (Quads & NGons) as Triangles", default=True)
+                CurrentFormatProperties.use_object_instantiation = bpy.props.BoolProperty(name="Use Object Instances", description="Instantiate multiple Objects from same Data", default=True)
+                CurrentFormatProperties.sort_by_name = bpy.props.BoolProperty(name="Sort by Object name", description="Sort exported data by Object name", default=False)
+                #export_transformation_type=0 # couldn't find correspondence in the UI
+                CurrentFormatProperties.export_transformation_type_selection = bpy.props.EnumProperty(name="Transformation Type", description="Transformation type for translation, scale and rotation", default='matrix', items=[('both', "Both", "Use <matrix> AND <translate>, <rotate>, <scale> to specify transformations"), ('transrotloc', "TransLocRot", "Use <translate>, <rotate>, <scale> to specify transformations"), ('matrix', "Matrix", "Use <matrix> to specify transformations")])
+                CurrentFormatProperties.open_sim = bpy.props.BoolProperty(name="Export for OpenSim", description="Compatibility mode for OpenSim and compatible online worlds", default=False)
         else:
             self.visible_name = "Blend"
             self.filename_ext = ".blend"

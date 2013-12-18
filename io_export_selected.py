@@ -20,7 +20,7 @@
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking",
-    "version": (1, 3),
+    "version": (1, 4),
     "blender": (2, 6, 9),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
@@ -76,6 +76,40 @@ def get_op(idname):
     category = getattr(bpy.ops, category_name)
     return getattr(category, op_name)
 
+class ToggleObjectMode:
+    def __init__(self, mode='OBJECT', undo=False):
+        if not isinstance(mode, str):
+            mode = ('OBJECT' if mode else None)
+        
+        obj = bpy.context.object
+        if obj and (obj.mode != mode):
+            self.mode = mode
+        else:
+            self.mode = None
+        self.undo = undo
+    
+    def __enter__(self):
+        if self.mode:
+            edit_preferences = bpy.context.user_preferences.edit
+            
+            self.global_undo = edit_preferences.use_global_undo
+            self.prev_mode = bpy.context.object.mode
+            
+            if self.prev_mode != self.mode:
+                if self.undo is not None:
+                    edit_preferences.use_global_undo = self.undo
+                bpy.ops.object.mode_set(mode=self.mode)
+        
+        return self
+    
+    def __exit__(self, type, value, traceback):
+        if self.mode:
+            edit_preferences = bpy.context.user_preferences.edit
+            
+            if self.prev_mode != self.mode:
+                bpy.ops.object.mode_set(mode=self.prev_mode)
+                edit_preferences.use_global_undo = self.global_undo
+
 def iter_exporters():
     #categories = dir(bpy.ops)
     categories = ["export_anim", "export_mesh", "export_scene"]
@@ -100,16 +134,89 @@ class CurrentFormatProperties(bpy.types.PropertyGroup):
         
         for key in keys_to_remove:
             delattr(cls, key)
+        
+        CurrentFormatProperties.__dict = None
     
     @classmethod
     def _add_props(cls, template):
         for key, value in iter_public_bpy_props(template):
             setattr(cls, key, value)
+        
+        CurrentFormatProperties.__dict = {}
+        for key in dir(template):
+            value = getattr(template, key)
+            if is_bpy_prop(value): continue
+            CurrentFormatProperties.__dict[key] = value
     
     @classmethod
     def _keys(cls, exclude_hidden=False):
         for kv in iter_public_bpy_props(cls, exclude_hidden):
             yield kv[0]
+    
+    def __getattr__(self, name):
+        return CurrentFormatProperties.__dict[name]
+    
+    def __setattr__(self, name, value):
+        if hasattr(self.__class__, name) and (not name.startswith("_")):
+            supercls = super(CurrentFormatProperties, self.__class__)
+            supercls.__setattr__(self, name, value)
+        else:
+            CurrentFormatProperties.__dict[name] = value
+
+class ColladaEmulator:
+    # Special case: Collada (built-in) -- has no explicitly defined Python properties
+    apply_modifiers = bpy.props.BoolProperty(name="Apply Modifiers", description="Apply modifiers to exported mesh (non destructive)", default=False)
+    #export_mesh_type=0 # couldn't find correspondence in the UI
+    export_mesh_type_selection = bpy.props.EnumProperty(name="Type of modifiers", description="Modifier resolution for export", default='view', items=[('render', "Render", "Apply modifier's render settings"), ('view', "View", "Apply modifier's view settings")])
+    selected = bpy.props.BoolProperty(name="Selection Only", description="Export only selected elements", default=False)
+    include_children = bpy.props.BoolProperty(name="Include Children", description="Export all children of selected objects (even if not selected)", default=False)
+    include_armatures = bpy.props.BoolProperty(name="Include Armatures", description="Export related armatures (even if not selected)", default=False)
+    include_shapekeys = bpy.props.BoolProperty(name="Include Shape Keys", description="Export all Shape Keys from Mesh Objects", default=True)
+    deform_bones_only = bpy.props.BoolProperty(name="Deform Bones only", description="Only export deforming bones with armatures", default=False)
+    active_uv_only = bpy.props.BoolProperty(name="Only Active UV layer", description="Export textures assigned to the object UV maps", default=False)
+    include_uv_textures = bpy.props.BoolProperty(name="Include UV Textures", description="Export textures assigned to the object UV maps", default=False)
+    include_material_textures = bpy.props.BoolProperty(name="Include Material Textures", description="Export textures assigned to the object Materials", default=False)
+    use_texture_copies = bpy.props.BoolProperty(name="Copy Textures", description="Copy textures to the same folder where .dae file is exported", default=True)
+    triangulate = bpy.props.BoolProperty(name="Triangulate", description="Export Polygons (Quads & NGons) as Triangles", default=True)
+    use_object_instantiation = bpy.props.BoolProperty(name="Use Object Instances", description="Instantiate multiple Objects from same Data", default=True)
+    sort_by_name = bpy.props.BoolProperty(name="Sort by Object name", description="Sort exported data by Object name", default=False)
+    #export_transformation_type=0 # couldn't find correspondence in the UI
+    export_transformation_type_selection = bpy.props.EnumProperty(name="Transformation Type", description="Transformation type for translation, scale and rotation", default='matrix', items=[('both', "Both", "Use <matrix> AND <translate>, <rotate>, <scale> to specify transformations"), ('transrotloc', "TransLocRot", "Use <translate>, <rotate>, <scale> to specify transformations"), ('matrix', "Matrix", "Use <matrix> to specify transformations")])
+    open_sim = bpy.props.BoolProperty(name="Export for OpenSim", description="Compatibility mode for OpenSim and compatible online worlds", default=False)
+    
+    def draw(self, context):
+        layout = self.layout
+        
+        box = layout.box()
+        box.label(text="Export Data Options", icon='MESH_DATA')
+        row = box.split(0.6)
+        row.prop(self, "apply_modifiers")
+        row.prop(self, "export_mesh_type_selection", text="")
+        box.prop(self, "selected")
+        box.prop(self, "include_children")
+        box.prop(self, "include_armatures")
+        box.prop(self, "include_shapekeys")
+        
+        box = layout.box()
+        box.label(text="Texture Options", icon='TEXTURE')
+        box.prop(self, "active_uv_only")
+        box.prop(self, "include_uv_textures")
+        box.prop(self, "include_material_textures")
+        box.prop(self, "use_texture_copies", text="Copy")
+        
+        box = layout.box()
+        box.label(text="Armature Options", icon='ARMATURE_DATA')
+        box.prop(self, "deform_bones_only")
+        box.prop(self, "open_sim")
+        
+        box = layout.box()
+        box.label(text="Collada Options", icon='MODIFIER')
+        box.prop(self, "triangulate")
+        box.prop(self, "use_object_instantiation")
+        row = box.split(0.6)
+        row.label(text="Transformation Type")
+        row.prop(self, "export_transformation_type_selection", text="")
+        box.prop(self, "sort_by_name")
 
 class ExportSelected(bpy.types.Operator, ExportHelper):
     '''Export selected objects to a chosen format'''
@@ -189,8 +296,8 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         )
     
     visible_name = bpy.props.StringProperty(
-        name="Format",
-        description="Export format",
+        name="Visible name",
+        description="Visible name",
         options={'HIDDEN'},
         )
     
@@ -205,44 +312,37 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         options={'HIDDEN'},
         )
     
+    props_initialized = bpy.props.BoolProperty(
+        options={'HIDDEN'},
+        default=False,
+        )
+    
     @classmethod
     def poll(cls, context):
         return len(context.scene.objects) != 0
     
-    def invoke(self, context, event):
+    def fill_props(self):
+        if self.props_initialized: return
+        
         CurrentFormatProperties._clear_props()
         
         if self.format:
             op = get_op(self.format)
             op_class = type(op.get_instance())
             
-            CurrentFormatProperties._add_props(op_class)
-            
             if self.format == "wm.collada_export":
-                # Special case: Collada (built-in) -- has no explicitly defined Python properties
-                CurrentFormatProperties.apply_modifiers = bpy.props.BoolProperty(name="Apply Modifiers", description="Apply modifiers to exported mesh (non destructive)", default=False)
-                #export_mesh_type=0 # couldn't find correspondence in the UI
-                CurrentFormatProperties.export_mesh_type_selection = bpy.props.EnumProperty(name="Type of modifiers", description="Modifier resolution for export", default='view', items=[('render', "Render", "Apply modifier's render settings"), ('view', "View", "Apply modifier's view settings")])
-                CurrentFormatProperties.selected = bpy.props.BoolProperty(name="Selection Only", description="Export only selected elements", default=False)
-                CurrentFormatProperties.include_children = bpy.props.BoolProperty(name="Include Children", description="Export all children of selected objects (even if not selected)", default=False)
-                CurrentFormatProperties.include_armatures = bpy.props.BoolProperty(name="Include Armatures", description="Export related armatures (even if not selected)", default=False)
-                CurrentFormatProperties.include_shapekeys = bpy.props.BoolProperty(name="Include Shape Keys", description="Export all Shape Keys from Mesh Objects", default=True)
-                CurrentFormatProperties.deform_bones_only = bpy.props.BoolProperty(name="Deform Bones only", description="Only export deforming bones with armatures", default=False)
-                CurrentFormatProperties.active_uv_only = bpy.props.BoolProperty(name="Only Active UV layer", description="Export textures assigned to the object UV maps", default=False)
-                CurrentFormatProperties.include_uv_textures = bpy.props.BoolProperty(name="Include UV Textures", description="Export textures assigned to the object UV maps", default=False)
-                CurrentFormatProperties.include_material_textures = bpy.props.BoolProperty(name="Include Material Textures", description="Export textures assigned to the object Materials", default=False)
-                CurrentFormatProperties.use_texture_copies = bpy.props.BoolProperty(name="Copy Textures", description="Copy textures to the same folder where .dae file is exported", default=True)
-                CurrentFormatProperties.triangulate = bpy.props.BoolProperty(name="Triangulate", description="Export Polygons (Quads & NGons) as Triangles", default=True)
-                CurrentFormatProperties.use_object_instantiation = bpy.props.BoolProperty(name="Use Object Instances", description="Instantiate multiple Objects from same Data", default=True)
-                CurrentFormatProperties.sort_by_name = bpy.props.BoolProperty(name="Sort by Object name", description="Sort exported data by Object name", default=False)
-                #export_transformation_type=0 # couldn't find correspondence in the UI
-                CurrentFormatProperties.export_transformation_type_selection = bpy.props.EnumProperty(name="Transformation Type", description="Transformation type for translation, scale and rotation", default='matrix', items=[('both', "Both", "Use <matrix> AND <translate>, <rotate>, <scale> to specify transformations"), ('transrotloc', "TransLocRot", "Use <translate>, <rotate>, <scale> to specify transformations"), ('matrix', "Matrix", "Use <matrix> to specify transformations")])
-                CurrentFormatProperties.open_sim = bpy.props.BoolProperty(name="Export for OpenSim", description="Compatibility mode for OpenSim and compatible online worlds", default=False)
+                op_class = ColladaEmulator
+            
+            CurrentFormatProperties._add_props(op_class)
         else:
             self.visible_name = "Blend"
             self.filename_ext = ".blend"
             self.filter_glob = "*.blend"
         
+        self.props_initialized = True
+    
+    def invoke(self, context, event):
+        self.fill_props()
         self.filepath = context.object.name + self.filename_ext
         return ExportHelper.invoke(self, context, event)
     
@@ -355,25 +455,26 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
             bpy.ops.object.join()
     
     def execute(self, context):
-        self.clear_world(context)
-        
-        if self.format:
-            props = {}
-            for key in CurrentFormatProperties._keys():
-                props[key] = getattr(self.format_props, key)
-            props["filepath"] = self.filepath
+        with ToggleObjectMode(undo=None):
+            self.clear_world(context)
             
-            op = get_op(self.format)
+            if self.format:
+                props = {}
+                for key in CurrentFormatProperties._keys():
+                    props[key] = getattr(self.format_props, key)
+                props["filepath"] = self.filepath
+                
+                op = get_op(self.format)
+                
+                op(**props)
+            else:
+                bpy.ops.wm.save_as_mainfile(
+                    filepath=self.filepath,
+                    copy=True,
+                )
             
-            op(**props)
-        else:
-            bpy.ops.wm.save_as_mainfile(
-                filepath=self.filepath,
-                copy=True,
-            )
-        
-        bpy.ops.ed.undo()
-        bpy.ops.ed.undo_push(message="Export Selected")
+            bpy.ops.ed.undo()
+            bpy.ops.ed.undo_push(message="Export Selected")
         
         return {'FINISHED'}
     
@@ -400,12 +501,15 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         op = get_op(self.format)
         op_class = type(op.get_instance())
         
-        if 0:#hasattr(op_class, "draw"):
-            # Some bugs here
+        if self.format == "wm.collada_export":
+            op_class = ColladaEmulator
+        
+        if hasattr(op_class, "draw"):
             self.format_props.layout = layout
             op_class.draw(self.format_props, context)
         else:
             for key in CurrentFormatProperties._keys(True):
+                if key == 'filepath': continue
                 layout.prop(self.format_props, key)
 
 class OBJECT_MT_selected_export(bpy.types.Menu):

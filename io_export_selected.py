@@ -20,7 +20,7 @@
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking",
-    "version": (1, 4),
+    "version": (1, 5),
     "blender": (2, 6, 9),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
@@ -312,10 +312,10 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         options={'HIDDEN'},
         )
     
-    props_initialized = bpy.props.BoolProperty(
-        options={'HIDDEN'},
-        default=False,
-        )
+    # Not a BPY property! (otherwise it gets memorized)
+    props_initialized = False
+    
+    try_use_cutsom_draw = True
     
     @classmethod
     def poll(cls, context):
@@ -504,10 +504,19 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         if self.format == "wm.collada_export":
             op_class = ColladaEmulator
         
-        if hasattr(op_class, "draw"):
-            self.format_props.layout = layout
-            op_class.draw(self.format_props, context)
-        else:
+        # hasattr returns true even if the name was defined in the superclass
+        #if self.try_use_cutsom_draw and hasattr(op_class, "draw"):
+        if self.try_use_cutsom_draw:
+            if ("draw" in op_class.__dict__):
+                self.format_props.layout = layout
+                try:
+                    op_class.draw(self.format_props, context)
+                except:
+                    self.try_use_cutsom_draw = False
+            else:
+                self.try_use_cutsom_draw = False
+        
+        if not self.try_use_cutsom_draw:
             for key in CurrentFormatProperties._keys(True):
                 if key == 'filepath': continue
                 layout.prop(self.format_props, key)

@@ -20,7 +20,7 @@
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking",
-    "version": (1, 5),
+    "version": (1, 5, 1),
     "blender": (2, 6, 9),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
@@ -35,6 +35,8 @@ bl_info = {
 import bpy
 
 from bpy_extras.io_utils import ExportHelper
+
+import os
 
 join_before_export = {
     "export_mesh.ply",
@@ -82,10 +84,7 @@ class ToggleObjectMode:
             mode = ('OBJECT' if mode else None)
         
         obj = bpy.context.object
-        if obj and (obj.mode != mode):
-            self.mode = mode
-        else:
-            self.mode = None
+        self.mode = (mode if obj and (obj.mode != mode) else None)
         self.undo = undo
     
     def __enter__(self):
@@ -93,6 +92,7 @@ class ToggleObjectMode:
             edit_preferences = bpy.context.user_preferences.edit
             
             self.global_undo = edit_preferences.use_global_undo
+            # if self.mode == True, bpy.context.object exists
             self.prev_mode = bpy.context.object.mode
             
             if self.prev_mode != self.mode:
@@ -341,9 +341,24 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         
         self.props_initialized = True
     
+    def prepare_filepath(self, context):
+        obj = context.object
+        
+        if obj and obj.select:
+            name = obj.name
+        else:
+            name = bpy.context.blend_data.filepath
+            name = bpy.path.basename(name)
+            name = os.path.splitext(name)[0]
+        
+        if len(name) == 0:
+            name = "untitled"
+        
+        self.filepath = name + self.filename_ext
+    
     def invoke(self, context, event):
         self.fill_props()
-        self.filepath = context.object.name + self.filename_ext
+        self.prepare_filepath(context)
         return ExportHelper.invoke(self, context, event)
     
     def clear_world(self, context):

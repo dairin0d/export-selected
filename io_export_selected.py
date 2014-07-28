@@ -20,7 +20,7 @@
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking",
-    "version": (1, 5, 1),
+    "version": (1, 5, 2),
     "blender": (2, 6, 9),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
@@ -250,10 +250,12 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         default=True,
         )
     
+    # Seems like attempts at manual removal cause Blender to crash
+    """
     remove_orphans = bpy.props.BoolProperty(
         name="Remove Orphans",
         description="Remove datablocks that have no users",
-        default=True,
+        default=False,#True,
         )
     
     keep_materials = bpy.props.BoolProperty(
@@ -271,8 +273,9 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
     keep_world_textures = bpy.props.BoolProperty(
         name="Keep World Textures",
         description="Keep World Textures",
-        default=False,
+        default=True,#False,
         )
+    """
     
     object_types = bpy.props.EnumProperty(
         name="Object types",
@@ -398,6 +401,8 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
                 bpy.data.objects.remove(obj)
         scene.update()
         
+        # Seems like attempts at manual removal cause Blender to crash
+        """
         if not self.format:
             if not self.keep_materials:
                 for material in bpy.data.materials:
@@ -464,6 +469,7 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
                         for datablock in datablocks:
                             if datablock.users == 0:
                                 datablocks.remove(datablock)
+        """
         
         if self.format in join_before_export:
             bpy.ops.object.convert()
@@ -505,12 +511,15 @@ class ExportSelected(bpy.types.Operator, ExportHelper):
         layout.box()
         
         if not self.format:
+            # Seems like attempts at manual removal cause Blender to crash
+            """
             layout.prop(self, "remove_orphans")
             layout.prop(self, "keep_materials")
             layout.prop(self, "keep_textures")
             sublayout = layout.row()
             sublayout.enabled = self.keep_textures
             sublayout.prop(self, "keep_world_textures")
+            """
             return
         
         op = get_op(self.format)

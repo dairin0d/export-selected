@@ -170,7 +170,7 @@ def replace_extension(path, ext):
 forbidden_chars = "\x00-\x1f/" # on all OSes
 forbidden_chars += "<>:\"|?*\\\\" # on Windows/FAT/NTFS
 forbidden_chars = "["+forbidden_chars+"]"
-def clean_filename(filename, sub="_"):
+def clean_filename(filename, sub="-"):
     return re.sub(forbidden_chars, sub, filename)
 
 def iter_exporters():

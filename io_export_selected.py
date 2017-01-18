@@ -18,8 +18,8 @@
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking, moth3r",
-    "version": (2, 1, 2),
-    "blender": (2, 6, 9),
+    "version": (2, 1, 3),
+    "blender": (2, 7, 8),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
     "warning": "",
@@ -862,7 +862,7 @@ class ExportSelected(bpy.types.Operator, ExportSelected_Base):
         
         for scene in bpy.data.scenes:
             if scene != context.scene:
-                bpy.data.scenes.remove(scene)
+                bpy.data.scenes.remove(scene, do_unlink=True)
         
         scene = context.scene
         

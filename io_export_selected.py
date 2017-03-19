@@ -18,7 +18,7 @@
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking, moth3r",
-    "version": (2, 1, 3),
+    "version": (2, 1, 4),
     "blender": (2, 7, 0),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
@@ -956,10 +956,11 @@ class ExportSelected(bpy.types.Operator, ExportSelected_Base):
                     clean_keys[key] = clean_filename(key)
                     bundles_dict.setdefault(key, []).append(obj.name)
             self.resolve_key_conflicts(clean_keys)
+            if bpy_path_basename(basepath): basepath += "-"
             for key, bundle in bundles_dict.items():
                 # Due to Undo on export, object references will be invalid
                 bundle = [bpy.data.objects[obj_name] for obj_name in bundle]
-                yield basepath+"-"+clean_keys[key]+ext, bundle
+                yield basepath+clean_keys[key]+ext, bundle
     
     @classmethod
     def poll(cls, context):
@@ -1017,7 +1018,7 @@ class ExportSelectedPG(bpy.types.PropertyGroup, ExportSelected_Base):
     
     def draw_export(self, row):
         row2 = row.row(True)
-        row2.enabled = bool(self.filename)
+        row2.enabled = bool(self.filename) or (self.bundle_mode != 'NONE')
         
         op_info = row2.operator(ExportSelected.bl_idname, text="Export", icon='EXPORT')
         op_info.use_file_browser = False
@@ -1031,15 +1032,18 @@ class ExportSelectedPG(bpy.types.PropertyGroup, ExportSelected_Base):
     def draw(self, context):
         layout = self.layout
         
+        dir_exists = os.path.exists(self.abspath(self.filedir))
+        file_exists = os.path.exists(self.abspath(self.filepath))
+        
         column = layout.column(True)
         
         row = column.row(True)
-        row.alert = not os.path.exists(self.abspath(self.filedir))
+        row.alert = not dir_exists
         row.prop(self, "filedir", text="")
         
         row = column.row(True)
         row2 = row.row(True)
-        row2.alert = os.path.exists(self.abspath(self.filepath))
+        row2.alert = file_exists and (self.bundle_mode == 'NONE')
         row2.prop(self, "filename", text="")
         row.prop(self, "auto_name", text="", icon='SCENE_DATA', toggle=True)
         

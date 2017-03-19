@@ -31,11 +31,10 @@ point. The next time you run Blender you won't have to repeat the above.
 When installed, it will add a submenu `Selected` to the Export menu, where
 the available formats would be listed.
 
-Contact information
--------------------
+Wiki page
+---------
 
-Upload Tracker:
-http://projects.blender.org/tracker/?func=detail&aid=30942
+http://wiki.blender.org/index.php/Extensions:2.6/Py/Scripts/Import-Export/Export_Selected
 
 Thanks
 ------

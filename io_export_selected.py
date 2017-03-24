@@ -18,7 +18,7 @@
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking, moth3r",
-    "version": (2, 1, 4),
+    "version": (2, 1, 5),
     "blender": (2, 7, 0),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
@@ -125,6 +125,72 @@ def belongs_to_group(obj, group, consider_dupli=False):
     elif obj.name in group.objects:
         return 'PART'
     return None
+
+# FRAMES copies the object itself, but not its children
+# VERTS and FACES copy the children
+# GROUP copies the group contents
+
+def get_dupli_roots(obj, scene=None, settings='VIEWPORT'):
+    if (not obj) or (obj.dupli_type == 'NONE'): return None
+    if not scene: scene = bpy.context.scene
+    
+    filter = None
+    if obj.dupli_type in ('VERTS', 'FACES'):
+        filter = set(obj.children)
+    elif (obj.dupli_type == 'GROUP') and obj.dupli_group:
+        filter = set(obj.dupli_group.objects)
+    
+    roots = []
+    if obj.dupli_list: obj.dupli_list_clear()
+    obj.dupli_list_create(scene, settings)
+    for dupli in obj.dupli_list:
+        if (not filter) or (dupli.object in filter):
+            roots.append((dupli.object, Matrix(dupli.matrix)))
+    obj.dupli_list_clear()
+    
+    return roots
+
+def instantiate_duplis(obj, scene=None, settings='VIEWPORT', depth=-1):
+    if (not obj) or (obj.dupli_type == 'NONE'): return
+    if not scene: scene = bpy.context.scene
+    
+    if depth == 0: return
+    if depth > 0: depth -= 1
+    
+    roots = get_dupli_roots(obj, scene, settings)
+    
+    dupli_type = obj.dupli_type
+    # Prevent recursive copying in FRAMES dupli mode
+    obj.dupli_type = 'NONE'
+    
+    dst_info = []
+    src_dst = {}
+    for src_obj, matrix in roots:
+        dst_obj = src_obj.copy()
+        dst_obj.constraints.clear()
+        scene.objects.link(dst_obj)
+        if dupli_type == 'FRAMES':
+            dst_obj.animation_data_clear()
+        dst_info.append((dst_obj, src_obj, matrix))
+        src_dst[src_obj] = dst_obj
+    
+    scene.update() # <-- important
+    
+    for dst_obj, src_obj, matrix in dst_info:
+        dst_parent = src_dst.get(src_obj.parent)
+        if dst_parent:
+            # parent_type, parent_bone, parent_vertices
+            # should be copied automatically
+            dst_obj.parent = dst_parent
+        else:
+            dst_obj.parent_type = 'OBJECT'
+            dst_obj.parent = obj
+    
+    for dst_obj, src_obj, matrix in dst_info:
+        dst_obj.matrix_world = matrix
+    
+    for dst_obj, src_obj, matrix in dst_info:
+        instantiate_duplis(dst_obj, scene, settings, depth)
 
 class PrimitiveLock(object):
     "Primary use of such lock is to prevent infinite recursion"
@@ -801,24 +867,8 @@ class ExportSelected(bpy.types.Operator, ExportSelected_Base):
                 obj.select = obj in objs
             bpy.ops.object.duplicates_make_real(use_base_parent=False, use_hierarchy=False)
         else:
-            roots0 = {obj for obj in scene.objects if not obj.parent}
-            
-            for obj0 in objs:
-                if obj0.dupli_type == 'NONE': continue
-                
-                for obj in scene.objects:
-                    obj.hide_select = False
-                    obj.select = False
-                
-                obj0.select = True
-                bpy.ops.object.duplicates_make_real(use_base_parent=False, use_hierarchy=True)
-                
-                roots = {obj for obj in scene.objects if not obj.parent}
-                new_objs = roots - roots0
-                for obj in new_objs:
-                    matrix = Matrix(obj.matrix_world)
-                    obj.parent = obj0
-                    obj.matrix_world = matrix
+            for obj in objs:
+                instantiate_duplis(obj, scene)
         
         for obj in scene.objects:
             if obj in del_objs: continue

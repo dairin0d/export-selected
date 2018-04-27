@@ -18,7 +18,7 @@
 bl_info = {
     "name": "Export Selected",
     "author": "dairin0d, rking, moth3r",
-    "version": (2, 2, 0),
+    "version": (2, 2, 1),
     "blender": (2, 7, 0),
     "location": "File > Export > Selected",
     "description": "Export selected objects to a chosen format",
@@ -1060,13 +1060,22 @@ class ExportSelected(bpy.types.Operator, ExportSelected_Base):
     def export_bundle(self, context, filepath, bundle):
         self.filepath = filepath
         with ToggleObjectMode(undo=None):
+            edit_preferences = bpy.context.user_preferences.edit
+            use_global_undo = edit_preferences.use_global_undo
+            undo_steps = edit_preferences.undo_steps
+            undo_memory_limit = edit_preferences.undo_memory_limit
+            edit_preferences.use_global_undo = True
+            edit_preferences.undo_steps = max(undo_steps, 2) # just in case
+            edit_preferences.undo_memory_limit = 0 # unlimited
             cursor_location = Vector(context.scene.cursor_location)
             bpy.ops.ed.undo_push(message="Delete unselected")
             self.clear_world(context, bundle)
             self.export(context)
             bpy.ops.ed.undo()
-            bpy.ops.ed.undo_push(message="Export Selected")
             context.scene.cursor_location = cursor_location
+            edit_preferences.use_global_undo = use_global_undo
+            edit_preferences.undo_steps = undo_steps
+            edit_preferences.undo_memory_limit = undo_memory_limit
     
     def get_bundle_keys_individual(self, obj):
         return {obj.name}
@@ -1109,7 +1118,7 @@ class ExportSelected(bpy.types.Operator, ExportSelected_Base):
             if bpy_path_basename(basepath): basepath += "-"
             for key, bundle in bundles_dict.items():
                 # Due to Undo on export, object references will be invalid
-                bundle = [bpy.data.objects[obj_name] for obj_name in bundle]
+                bundle = {bpy.data.objects[obj_name] for obj_name in bundle}
                 yield basepath+clean_keys[key]+ext, bundle
     
     @classmethod
@@ -1133,6 +1142,7 @@ class ExportSelected(bpy.types.Operator, ExportSelected_Base):
         self.filepath = self.abspath(self.filepath).replace("/", os.path.sep)
         for filepath, bundle in self.bundle_objects(objs):
             self.export_bundle(context, filepath, bundle)
+        bpy.ops.ed.undo_push(message="Export Selected")
         return {'FINISHED'}
     
     def draw(self, context):
